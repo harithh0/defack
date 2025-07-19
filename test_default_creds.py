@@ -1,12 +1,9 @@
 import ftplib
 import os
 import smtplib
-import socket
 import telnetlib
-import time
 
 import paramiko
-import pexpect
 
 
 class TestHost:
@@ -14,7 +11,7 @@ class TestHost:
     def __init__(self, host):
         self.host = host
 
-    def SSHLogin(self, username, password, port=22):
+    def sshLogin(self, username, password, port=22):
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -33,7 +30,7 @@ class TestHost:
         except:
             print(f"SSH login failed ({username}, {password})")
 
-    def TelnetLogin(self, username, password, port=23):
+    def telnetLogin(self, username, password, port=23):
         try:
             tn = telnetlib.Telnet(self.host, port, timeout=10)
         except OSError:
@@ -58,10 +55,16 @@ class TestHost:
         tn.close()
 
     def smtpLogin(self, username, password, port=2525):
-        smtp = smtplib.SMTP(self.host, port, timeout=10)
-        smtp.ehlo()  # Step 1: Say hello
-        login_status = smtp.login(username, password)  # Step 4: Login
-        print(login_status)
+        # WARN: this was only tested against 'smtp4dev' (no tls) via docker on port 2525
+        try:
+            smtp = smtplib.SMTP(self.host, port, timeout=10)
+        except TimeoutError:
+            print("SMTP timeout error something went wrong")
+            return
+        smtp.ehlo()
+        login_status = smtp.login(username, password)
+        if login_status == 235:
+            print(f"SMTP successful ({username}, {password})")
 
     def ftpLogin(self, username, password, port=21):
         try:
@@ -77,23 +80,22 @@ class TestHost:
         except TimeoutError:
             print("timeout error something went wrong")
         except OSError:
-            print(f"Target port {port} is closed")
+            print(f"FTP: Target port {port} is closed")
             return
 
 
-host = "10.0.0.212"
-sshport = 22
-telnetport = 23
-target_host = TestHost(host)
+target_host = TestHost("10.0.0.212")
 
-# target_host.ftpLogin("kali", "kali")
-target_host.smtpLogin("kali", "kali")
-
-time.sleep(100)
+creds = []
 with open(os.path.join(os.path.dirname(__file__), "defaults.txt"), "r") as f:
     for line in f:
         vals = line.split()
         username = vals[0].strip()
         password = vals[1].strip()
-        target_host.SSHLogin(username, password)
-        target_host.TelnetLogin(username, password)
+        creds.append((username, password))
+
+for cred in creds:
+    print(f"Testing creds: {cred}")
+    target_host.sshLogin(cred[0], cred[1])
+    target_host.telnetLogin(cred[0], cred[1])
+    target_host.ftpLogin(cred[0], cred[1])
