@@ -73,32 +73,43 @@ class TestHost:
         try:
             smtp = smtplib.SMTP(self.host, port, timeout=10)
         except TimeoutError:
-            print("SMTP timeout error something went wrong")
+            console.print("[!] ERROR: SMTP timeout error something went wrong",
+                          style="bold red")
             return
         smtp.ehlo()
         login_status = smtp.login(username, password)
         if login_status == 235:
-            print(f"SMTP successful ({username}, {password})")
+            console.print(f"[+] SMTP successful ({username}, {password})",
+                          style="bold green")
         else:
             if not ignore_failed:
-                print(f"SMTP loggin failed ({username}, {password})")
+                console.print("[-] SMTP login failed", style="bold yellow")
 
     def ftpLogin(self, username, password, ignore_failed, port=21):
         try:
             ftp = ftplib.FTP(self.host, timeout=10)
-            loggin_status = ftp.login(username, password)
-            print(loggin_status)
-            if loggin_status == "230 Login successful.":
-                print(f"FTP successful ({username}, {password})")
-            else:
+            try:
+                login_status = ftp.login(username, password)
+                if login_status == "230 Login successful.":
+                    console.print(
+                        f"[+] FTP successful ({username}, {password})",
+                        style="bold green",
+                    )
+                else:
+                    if not ignore_failed:
+                        console.print("[-] FTP login failed",
+                                      style="bold yellow")
+            except ftplib.error_perm:
                 if not ignore_failed:
-                    print(f"FTP login failed ({username}, {password})")
+                    console.print("[-] FTP login failed", style="bold yellow")
 
         # NOTE: 'TimeoutError' is sublcass of 'OSError' so put it above parent class if doing multiple try/except or do isinstance(e, TimeoutError) ...
         except TimeoutError:
-            print("timeout error something went wrong")
+            console.print("[!] ERROR: timeout error something went wrong",
+                          style="bold red")
         except OSError:
-            print(f"FTP: Target port {port} is closed")
+            console.print(f"[!] ERROR FTP port {port} is closed",
+                          style="bold red")
             return
 
 
@@ -195,20 +206,24 @@ def main():
     list_of_args = [args.ftp, args.ssh, args.smtp, args.tel]
 
     if not args.all and not any(list_of_args):
-        print("Incorrect usage, please specify which service")
+        console.print(
+            "[!] ERROR: Incorrect usage, please specify which service",
+            style="bold red")
         return
     if args.all and any(list_of_args):
-        print("Incorrect usage, using all with specific args")
+        console.print(
+            "[!] ERROR: Incorrect usage, using all with specific args",
+            style="bold red")
         return
 
     # Check correct IP
     try:
         ip_addr = ipaddress.ip_address(args.target)
-        print(ip_addr.version)
     except ValueError:
-        print("enter correct ip address")
+        console.print("[!] ERROR: Enter correct IP address", style="bold red")
 
     target_host = TestHost(args.target)
+
     # Check correct file
     if args.text_file:
         if os.path.exists(args.text_file):
