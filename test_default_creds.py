@@ -9,6 +9,7 @@ import time
 from typing import List, TextIO
 
 import paramiko
+from paramiko.ssh_exception import AuthenticationException, SSHException
 from rich.console import Console
 
 console = Console()
@@ -37,9 +38,11 @@ class TestHost:
         except OSError:
             console.print(f"[!] ERROR: SSH port {port} is closed",
                           style="bold red")
-        except:
+        except AuthenticationException:
             if not ignore_failed:
                 console.print("[-] SSH login failed", style="bold yellow")
+        except SSHException:
+            console.print(f"[!] ERROR: SSH network error", style="bold red")
 
     def telnetLogin(self, username, password, ignore_failed, port=23):
         try:
@@ -53,7 +56,8 @@ class TestHost:
         tn.read_until(b"Password:")
         tn.write((password + "\n").encode("utf-8"))
 
-        failed_login_status = tn.read_until(b"Login incorrect")
+        # keep timeout since if after timeout sill can't read, then its correct
+        failed_login_status = tn.read_until(b"Login incorrect", timeout=10)
 
         # INFO: 'failed_login_status' can either return empty string with ' \r\n' (usually when its passed the timeout time) or 'Login incorrect' somewhere in the line
         if (b"Login incorrect" in failed_login_status
@@ -200,7 +204,6 @@ def main():
                         help="Optional path of text file of credentials")
     parser.add_argument("target", help="Target host to test credentials")
     args = parser.parse_args()
-    print(args)
 
     # Check correct usage
     list_of_args = [args.ftp, args.ssh, args.smtp, args.tel]
