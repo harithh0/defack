@@ -43,7 +43,7 @@ class TestHost:
 
     def telnetLogin(self, username, password, ignore_failed, port=23):
         try:
-            tn = telnetlib.Telnet(self.host, port, timeout=10)
+            tn = telnetlib.Telnet(self.host, port)
         except OSError:
             console.print(f"[!] ERROR: TELNET port {port} is closed",
                           style="bold red")
@@ -53,7 +53,7 @@ class TestHost:
         tn.read_until(b"Password:")
         tn.write((password + "\n").encode("utf-8"))
 
-        failed_login_status = tn.read_until(b"Login incorrect", timeout=5)
+        failed_login_status = tn.read_until(b"Login incorrect")
 
         # INFO: 'failed_login_status' can either return empty string with ' \r\n' (usually when its passed the timeout time) or 'Login incorrect' somewhere in the line
         if (b"Login incorrect" in failed_login_status
