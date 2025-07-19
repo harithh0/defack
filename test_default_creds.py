@@ -9,6 +9,9 @@ import time
 from typing import List, TextIO
 
 import paramiko
+from rich.console import Console
+
+console = Console()
 
 
 class TestHost:
@@ -16,7 +19,7 @@ class TestHost:
     def __init__(self, host):
         self.host = host
 
-    def sshLogin(self, username, password, port=22):
+    def sshLogin(self, username, password, ignore_failed, port=22):
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -26,20 +29,24 @@ class TestHost:
                         password=password)
             ssh_session = ssh.get_transport().open_session()
             if ssh_session.active:
-                print(
-                    f"SSH login successful on {self.host}:{port} with ({username}, {password})"
+                console.print(
+                    f"[+] SSH login successful ({username}, {password})",
+                    style="bold green",
                 )
             ssh.close()
         except OSError:
-            print(f"Target port {port} is closed")
+            console.print(f"[!] ERROR: SSH port {port} is closed",
+                          style="bold red")
         except:
-            print(f"SSH login failed ({username}, {password})")
+            if not ignore_failed:
+                console.print("[-] SSH login failed", style="bold yellow")
 
-    def telnetLogin(self, username, password, port=23):
+    def telnetLogin(self, username, password, ignore_failed, port=23):
         try:
             tn = telnetlib.Telnet(self.host, port, timeout=10)
         except OSError:
-            print(f"Target port {port} is closed")
+            console.print(f"[!] ERROR: TELNET port {port} is closed",
+                          style="bold red")
             return
         tn.read_until(b"login:")
         tn.write((username + "\n").encode("utf-8"))
@@ -51,15 +58,17 @@ class TestHost:
         # INFO: 'failed_login_status' can either return empty string with ' \r\n' (usually when its passed the timeout time) or 'Login incorrect' somewhere in the line
         if (b"Login incorrect" in failed_login_status
                 or failed_login_status == " \r\n".encode("ascii")):
-            print(f"Telnet login failed ({username}, {password})")
+            if not ignore_failed:
+                console.print("[-] Telnet login failed", style="bold yellow")
         else:
-            print(f"Telnet successful ({username}, {password})")
+            console.print(f"[+] Telnet successful ({username}, {password})",
+                          style="bold green")
             tn.write(b"exit")
 
         # gracefully 'FIN' close the connection
         tn.close()
 
-    def smtpLogin(self, username, password, port=2525):
+    def smtpLogin(self, username, password, ignore_failed, port=2525):
         # WARN: this was only tested against 'smtp4dev' (no tls) via docker on port 2525
         try:
             smtp = smtplib.SMTP(self.host, port, timeout=10)
@@ -70,8 +79,11 @@ class TestHost:
         login_status = smtp.login(username, password)
         if login_status == 235:
             print(f"SMTP successful ({username}, {password})")
+        else:
+            if not ignore_failed:
+                print(f"SMTP loggin failed ({username}, {password})")
 
-    def ftpLogin(self, username, password, port=21):
+    def ftpLogin(self, username, password, ignore_failed, port=21):
         try:
             ftp = ftplib.FTP(self.host, timeout=10)
             loggin_status = ftp.login(username, password)
@@ -79,7 +91,8 @@ class TestHost:
             if loggin_status == "230 Login successful.":
                 print(f"FTP successful ({username}, {password})")
             else:
-                print(f"FTP login failed ({username}, {password})")
+                if not ignore_failed:
+                    print(f"FTP login failed ({username}, {password})")
 
         # NOTE: 'TimeoutError' is sublcass of 'OSError' so put it above parent class if doing multiple try/except or do isinstance(e, TimeoutError) ...
         except TimeoutError:
@@ -97,6 +110,52 @@ def get_creds_from_file(file_object: TextIO) -> List[str]:
     creds_list = creds.split("\n")
     # returns list without last index as is empty string
     return creds_list[:len(creds_list) - 1]
+
+
+def try_cred(target_host, username, password, args):
+    # help functions
+    def try_ssh(username, password, args):
+        with console.status(
+                f"[cyan] SSH Trying {username}, {password}...[/cyan]",
+                spinner="dots",
+        ):
+            target_host.sshLogin(username, password, args.ignore_failed)
+
+    def try_telnet(username, password, args):
+        with console.status(
+                f"[cyan] TELNET Trying {username}, {password}...[/cyan]",
+                spinner="dots",
+        ):
+            target_host.telnetLogin(username, password, args.ignore_failed)
+
+    def try_ftp(username, password, args):
+        with console.status(
+                f"[cyan] FTP Trying {username}, {password}...[/cyan]",
+                spinner="dots",
+        ):
+            target_host.ftpLogin(username, password, args.ignore_failed)
+
+    def try_smtp(username, password, args):
+        with console.status(
+                f"[cyan] SMTP Trying {username}, {password}...[/cyan]",
+                spinner="dots",
+        ):
+            target_host.smtpLogin(username, password, args.ignore_failed)
+
+    if args.all:
+        try_ssh(username, password, args)
+        try_telnet(username, password, args)
+        try_ftp(username, password, args)
+        try_smtp(username, password, args)
+    else:
+        if args.ftp:
+            try_ftp(username, password, args)
+        if args.ssh:
+            try_ssh(username, password, args)
+        if args.smtp:
+            try_smtp(username, password, args)
+        if args.tel:
+            try_telnet(username, password, args)
 
 
 def main():
@@ -122,7 +181,7 @@ def main():
                         action="store_true",
                         help="Enable Telnet service")
     parser.add_argument("-i",
-                        "--ignore-fails",
+                        "--ignore-failed",
                         action="store_true",
                         help="Ignore failed loggin creds")
     parser.add_argument("-x",
@@ -149,14 +208,19 @@ def main():
     except ValueError:
         print("enter correct ip address")
 
-    creds = []
-
+    target_host = TestHost(args.target)
     # Check correct file
     if args.text_file:
         if os.path.exists(args.text_file):
             if os.path.splitext(args.text_file)[1] == ".txt":
                 with open(args.text_file, "r") as f:
-                    creds = get_creds_from_file(f)
+                    # TODO: Test if file is valid format / not empty
+
+                    for line in f:
+                        username, password = line.split()
+                        console.print(f"Trying {username}, {password}",
+                                      style="cyan")
+                        try_cred(target_host, username, password, args)
             else:
                 print("Must be .txt file")
                 return
@@ -166,34 +230,9 @@ def main():
     else:
         with open(os.path.join(os.path.dirname(__file__), "defaults.txt"),
                   "r") as f:
-            creds = get_creds_from_file(f)
-
-    target_host = TestHost(args.target)
-
-    # Make sure creds list is not empty
-    print(creds)
-    if creds:
-        for cred in creds:
-            print(f"Testing creds: {cred}")
-            username = cred.split()[0].strip()
-            password = cred.split()[1].strip()
-            if args.all:
-                target_host.sshLogin(username, password)
-                target_host.telnetLogin(username, password)
-                target_host.ftpLogin(username, password)
-                target_host.smtpLogin(username, password)
-            else:
-                if args.ftp:
-                    target_host.ftpLogin(username, password)
-                if args.ssh:
-                    target_host.sshLogin(username, password)
-                if args.smtp:
-                    target_host.smtpLogin(username, password)
-                if args.tel:
-                    target_host.telnetLogin(username, password)
-    else:
-        print("Empty file provided")
-        return
+            for line in f:
+                username, password = line.split()
+                try_cred(target_host, username, password, args)
 
 
 main()
