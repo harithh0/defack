@@ -1,7 +1,12 @@
+import argparse
 import ftplib
+import ipaddress
 import os
 import smtplib
+import sys
 import telnetlib
+import time
+from typing import List, TextIO
 
 import paramiko
 
@@ -84,18 +89,111 @@ class TestHost:
             return
 
 
-target_host = TestHost("10.0.0.212")
+def get_creds_from_file(file_object: TextIO) -> List[str]:
+    # TODO: Validate file in right format
+    creds = file_object.read()
+    if creds.strip() == "":
+        return []
+    creds_list = creds.split("\n")
+    # returns list without last index as is empty string
+    return creds_list[:len(creds_list) - 1]
 
-creds = []
-with open(os.path.join(os.path.dirname(__file__), "defaults.txt"), "r") as f:
-    for line in f:
-        vals = line.split()
-        username = vals[0].strip()
-        password = vals[1].strip()
-        creds.append((username, password))
 
-for cred in creds:
-    print(f"Testing creds: {cred}")
-    target_host.sshLogin(cred[0], cred[1])
-    target_host.telnetLogin(cred[0], cred[1])
-    target_host.ftpLogin(cred[0], cred[1])
+def main():
+    parser = argparse.ArgumentParser(description="Default credential tester")
+    parser.add_argument("-a",
+                        "--all",
+                        action="store_true",
+                        help="Include all services")
+    parser.add_argument("-f",
+                        "--ftp",
+                        action="store_true",
+                        help="Enable FTP service")
+    parser.add_argument("-s",
+                        "--ssh",
+                        action="store_true",
+                        help="Enable SSH service")
+    parser.add_argument("-m",
+                        "--smtp",
+                        action="store_true",
+                        help="Enable SMTP service")
+    parser.add_argument("-t",
+                        "--tel",
+                        action="store_true",
+                        help="Enable Telnet service")
+    parser.add_argument("-i",
+                        "--ignore-fails",
+                        action="store_true",
+                        help="Ignore failed loggin creds")
+    parser.add_argument("-x",
+                        "--text-file",
+                        help="Optional path of text file of credentials")
+    parser.add_argument("target", help="Target host to test credentials")
+    args = parser.parse_args()
+    print(args)
+
+    # Check correct usage
+    list_of_args = [args.ftp, args.ssh, args.smtp, args.tel]
+
+    if not args.all and not any(list_of_args):
+        print("Incorrect usage, please specify which service")
+        return
+    if args.all and any(list_of_args):
+        print("Incorrect usage, using all with specific args")
+        return
+
+    # Check correct IP
+    try:
+        ip_addr = ipaddress.ip_address(args.target)
+        print(ip_addr.version)
+    except ValueError:
+        print("enter correct ip address")
+
+    creds = []
+
+    # Check correct file
+    if args.text_file:
+        if os.path.exists(args.text_file):
+            if os.path.splitext(args.text_file)[1] == ".txt":
+                with open(args.text_file, "r") as f:
+                    creds = get_creds_from_file(f)
+            else:
+                print("Must be .txt file")
+                return
+        else:
+            print("Text file does not exist")
+            return
+    else:
+        with open(os.path.join(os.path.dirname(__file__), "defaults.txt"),
+                  "r") as f:
+            creds = get_creds_from_file(f)
+
+    target_host = TestHost(args.target)
+
+    # Make sure creds list is not empty
+    print(creds)
+    if creds:
+        for cred in creds:
+            print(f"Testing creds: {cred}")
+            username = cred.split()[0].strip()
+            password = cred.split()[1].strip()
+            if args.all:
+                target_host.sshLogin(username, password)
+                target_host.telnetLogin(username, password)
+                target_host.ftpLogin(username, password)
+                target_host.smtpLogin(username, password)
+            else:
+                if args.ftp:
+                    target_host.ftpLogin(username, password)
+                if args.ssh:
+                    target_host.sshLogin(username, password)
+                if args.smtp:
+                    target_host.smtpLogin(username, password)
+                if args.tel:
+                    target_host.telnetLogin(username, password)
+    else:
+        print("Empty file provided")
+        return
+
+
+main()
