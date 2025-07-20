@@ -2,6 +2,7 @@ import argparse
 import ftplib
 import ipaddress
 import os
+import shutil
 import smtplib
 import telnetlib
 import time
@@ -11,7 +12,23 @@ import paramiko
 from paramiko.ssh_exception import AuthenticationException, SSHException
 from rich.console import Console
 
+banner = r"""
+    ____       _______        __  
+   / __ \___  / __/   | _____/ /__
+  / / / / _ \/ /_/ /| |/ ___/ //_/
+ / /_/ /  __/ __/ ___ / /__/ ,<   
+/_____/\___/_/ /_/  |_\___/_/|_|  
+                                  
+"""
+
 console = Console()
+
+console.print(banner, style="bold green")
+
+columns, _ = shutil.get_terminal_size()
+console.print("By: github@harithh0")
+console.print("DefAck v0.1")
+console.print("=" * int(columns / 2))
 
 
 class TestHost:
@@ -45,8 +62,8 @@ class TestHost:
 
     def telnetLogin(self, username, password, ignore_failed, port=23):
         try:
-            tn = telnetlib.Telnet(self.host, port)
-        except OSError:
+            tn = telnetlib.Telnet(self.host, port, timeout=10)
+        except TimeoutError:
             console.print(f"[!] ERROR: TELNET port {port} is closed",
                           style="bold red")
             return
@@ -76,7 +93,7 @@ class TestHost:
         try:
             smtp = smtplib.SMTP(self.host, port, timeout=10)
         except TimeoutError:
-            console.print("[!] ERROR: SMTP timeout error something went wrong",
+            console.print(f"[!] ERROR: SMTP port {port} is closed",
                           style="bold red")
             return
         smtp.ehlo()
@@ -108,12 +125,8 @@ class TestHost:
 
         # NOTE: 'TimeoutError' is sublcass of 'OSError' so put it above parent class if doing multiple try/except or do isinstance(e, TimeoutError) ...
         except TimeoutError:
-            console.print("[!] ERROR: timeout error something went wrong",
+            console.print(f"[!] ERROR: FTP port {port} is closed",
                           style="bold red")
-        except OSError:
-            console.print(f"[!] ERROR FTP port {port} is closed",
-                          style="bold red")
-            return
 
 
 def get_creds_from_file(file_object: TextIO) -> List[str]:
@@ -223,6 +236,7 @@ def main():
         ip_addr = ipaddress.ip_address(args.target)
     except ValueError:
         console.print("[!] ERROR: Enter correct IP address", style="bold red")
+        return
 
     target_host = TestHost(args.target)
 

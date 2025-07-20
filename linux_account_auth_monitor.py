@@ -18,14 +18,24 @@ log = subprocess.Popen(
 )
 
 sshd_re = re.compile(r"sshd\[\d+\]")
+xrdp_re = re.compile(r"xrdp-sesman\[\d+\]")
 
 line = "Failed password for invalid user zencji from 10.0.0.212 port 56026 ssh2"
 line2 = "Failed password for harith from 10.0.0.113 port 38188 ssh2"
+line3 = "pam_unix(xrdp-sesman:auth): authentication failure; logname= uid=0 euid=0 tty=xrdp-sesman ruser= rhost=  user=tester"
 failed_user_re = re.compile(
     r"Failed password for (?:invalid user )?(\w+) from ([\d.]+) port (\d+)")
 accepted_user_re = re.compile(
     r"Accepted password for (\w+) from ([\d.]+) port (\d+)")
-match = failed_user_re.search(line2)
+failed_xrdp_re = re.compile(
+    r"pam_unix\(xrdp-sesman:auth\): authentication failure; logname=(\w*) uid=(\d*) euid=(\d*) tty=xrdp-sesman ruser=(\w*) rhost=(\w*)  user=(\w+)"
+)
+
+# match = failed_xrdp_re.search(line3)
+# if match:
+#     print("match")
+#     print(match.group(6))
+# os.remove(pid_file)
 
 allowed_users = set("harith")
 allowed_ips = set("10.0.0.113")
@@ -49,6 +59,18 @@ def extract_info(line: str, type: str) -> dict[str, str]:
     return info
 
 
+def extract_info_xrdp(line: str, type: str) -> dict[str, str]:
+    info = {}
+    if type == "fail":
+        match = failed_xrdp_re.search(line)
+    else:
+        return {}
+
+    if match:
+        info["user"] = match.group(6)
+    return info
+
+
 def main():
     for line in log.stdout:
         formatted_line = line.decode().strip()
@@ -61,6 +83,17 @@ def main():
                 continue
             info = extract_info(formatted_line, type)
             print(info, type)
+
+        elif xrdp_re.search(formatted_line):
+            """
+            Issuess running into:
+                - auth.log not showing full data such as user's IP (leaves rhost= empty) and if username is invalid it will just leave user= empty
+            xrdp.log shows full data but will have to read different log
+            """
+            if "authentication failure;" in formatted_line:
+                type = "fail"
+                info = extract_info_xrdp(formatted_line, type)
+                print(info, type)
 
 
 try:
