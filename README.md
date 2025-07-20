@@ -2,6 +2,8 @@
 ## About
 A lightweight Python tool to test default or weak credentials across multiple services (SSH, FTP, Telnet, SMTP) on a target host.
 
+![results](./assets/results.png)
+
 > ⚠️ For educational and authorized penetration testing use only.
 
 
@@ -49,7 +51,6 @@ Ignore failed logins:
 ```bash
 python defack.py -a -i 192.168.1.1
 ```
-![results](./assets/results.png)
 
 
 ## Credential Format
