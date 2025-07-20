@@ -89,6 +89,7 @@ class TestHost:
         tn.close()
 
     def smtpLogin(self, username, password, ignore_failed, port=2525):
+        # BUG: !!!
         # WARN: this was only tested against 'smtp4dev' (no tls) via docker on port 2525
         try:
             smtp = smtplib.SMTP(self.host, port, timeout=10)
