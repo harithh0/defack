@@ -3,7 +3,6 @@ import ftplib
 import ipaddress
 import os
 import smtplib
-import sys
 import telnetlib
 import time
 from typing import List, TextIO
@@ -250,7 +249,9 @@ def main():
                   "r") as f:
             for line in f:
                 username, password = line.split()
+                console.print(f"Trying {username}, {password}", style="cyan")
                 try_cred(target_host, username, password, args)
 
 
-main()
+if __name__ == "__main__":
+    main()
