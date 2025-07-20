@@ -4,8 +4,6 @@ A lightweight Python tool to test default or weak credentials across multiple se
 
 ![results](./assets/results.png)
 
-> ⚠️ For educational and authorized penetration testing use only.
-
 
 ## 🚀 Features
 Test credentials against:
