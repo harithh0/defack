@@ -21,7 +21,7 @@ Test credentials against:
 ## 🛠️ Usage
 
 ```bash
-python test_default_creds.py [OPTIONS] <target-ip>
+python defack.py [OPTIONS] <target-ip>
 ```
 
 ### Basic Examples:
@@ -29,25 +29,25 @@ python test_default_creds.py [OPTIONS] <target-ip>
 Use all protocols:
 
 ```bash
-python test_defualt_creds.py -a 192.168.1.1
+python defack.py -a 192.168.1.1
 ```
 
 Use specific services:
 
 ```bash
-python test_default_creds.py -s -f 192.168.1.1
+python defack.py -s -f 192.168.1.1
 ```
 
 Use custom credentials:
 
 ```bash
-python test_default_creds.py -s -x creds.txt 192.168.1.1
+python defack.py -s -x creds.txt 192.168.1.1
 ```
 
 Ignore failed logins:
 
 ```bash
-python test_default_creds.py -a -i 192.168.1.1
+python defack.py -a -i 192.168.1.1
 ```
 ![results](./assets/results.png)
 
